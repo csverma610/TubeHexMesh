@@ -305,16 +305,16 @@ MeshPtr readGraph( const string &filename)
     graph->edges.resize(numEdges);
     for( size_t i = 0; i < numEdges; i++) {
         ifile >> v0 >> v1;
-        auto newedge = std::make_shared<Edge>();
         auto n0 = graph->nodes[v0];
         auto n1 = graph->nodes[v1];
-
+        auto newedge = std::make_shared<Edge>();
         newedge->nodes[0] = n0;
         newedge->nodes[1] = n1;
         graph->edges[i]   = newedge;
         n0->edges.push_back(newedge);
         n1->edges.push_back(newedge);
     }
+    return graph;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -423,7 +423,6 @@ void buildTube( const NodePtr &vtx, const EdgePtr &edge)
          auto cell = getHexElement(face1, face2);
 	 edge->hexmesh->cells.push_back(cell);
     }
-
 }
 //////////////////////////////////////////////////////////////////////////////
 
@@ -454,17 +453,17 @@ void buildTube( const EdgePtr &edge)
     }
 
     for( int i = 1;  i < edge->profiles[1].size(); i++) {
-	    auto f = edge->profiles[2][i];
+	    auto f = edge->profiles[1][i];
 	    for( int j  = 0; j < 4; j++) 
 	    edge->hexmesh->nodes.push_back( f->nodes[j] );
     }
-
 }
 
 //////////////////////////////////////////////////////////////////////////////
 
 void buildJunction( const NodePtr &vtx)
 {
+
     auto getLength = [] ( const Array3D &p0, const Array3D &p1)
     {
         double dx = p1[0] - p0[0];
@@ -508,8 +507,12 @@ int main(int argc, char **argv)
 
     auto  graph  = readGraph( argv[1] );
 
+    cout << graph->edges.size() << endl;
+
     for( auto v: graph->nodes ) buildJunction(v);
-    for( auto e: graph->edges ) buildTube(e);
+    for( auto e: graph->edges ) {
+	    buildTube(e);
+    }
 
     auto hexmesh = accumulateHexMesh(graph);
 
