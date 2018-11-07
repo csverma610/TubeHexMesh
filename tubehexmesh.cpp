@@ -127,8 +127,8 @@ struct Mesh
     std::vector<FacePtr> boundfaces;
 
     void add( const MeshPtr &m) {
-	    for( auto v: m->nodes) nodes.push_back(v);
-	    for( auto c: m->cells) cells.push_back(c);
+        for( auto v: m->nodes) nodes.push_back(v);
+        for( auto c: m->cells) cells.push_back(c);
     }
 
     void saveAs( const string &filename) {
@@ -141,24 +141,24 @@ struct Mesh
         for( auto v : nodes)
             ofile << v->xyz[0] << " " << v->xyz[1] << " " << v->xyz[2] << endl;
 
-        for( auto c : cells) 
+        for( auto c : cells)
             ofile << "8 " << c->nodes[0]->id << " "
-                          << c->nodes[1]->id << " "
-                  	  << c->nodes[2]->id << " "
-                  	  << c->nodes[3]->id << " "
-                  	  << c->nodes[4]->id << " "
-                  	  << c->nodes[5]->id << " "
-                  	  << c->nodes[6]->id << " "
-                          << c->nodes[7]->id << endl;
+                  << c->nodes[1]->id << " "
+                  << c->nodes[2]->id << " "
+                  << c->nodes[3]->id << " "
+                  << c->nodes[4]->id << " "
+                  << c->nodes[5]->id << " "
+                  << c->nodes[6]->id << " "
+                  << c->nodes[7]->id << endl;
     }
 
     void print( ofstream &ofile, FacePtr &f)
-	{
-            ofile << "4 " << f->nodes[0]->id << " "
-                          << f->nodes[1]->id << " "
-                          << f->nodes[2]->id << " "
-                          << f->nodes[3]->id << endl;
-	};
+    {
+        ofile << "4 " << f->nodes[0]->id << " "
+              << f->nodes[1]->id << " "
+              << f->nodes[2]->id << " "
+              << f->nodes[3]->id << endl;
+    };
 
     void saveFaces( const string &filename) {
 
@@ -171,33 +171,39 @@ struct Mesh
             ofile << v->xyz[0] << " " << v->xyz[1] << " " << v->xyz[2] << endl;
 
         for( auto c : cells) {
-             auto f0 = c->getFaceAt(-1);
-             print( ofile, f0);
-             auto f1 = c->getFaceAt(+1);
-             print( ofile, f1);
-             auto f2 = c->getFaceAt(-2);
-             print( ofile, f2);
-             auto f3 = c->getFaceAt(+2);
-             print( ofile, f3);
-             auto f4 = c->getFaceAt(-3);
-             print( ofile, f4);
-             auto f5 = c->getFaceAt(+3);
-             print( ofile, f5);
-	}
+            auto f0 = c->getFaceAt(-1);
+            print( ofile, f0);
+            auto f1 = c->getFaceAt(+1);
+            print( ofile, f1);
+            auto f2 = c->getFaceAt(-2);
+            print( ofile, f2);
+            auto f3 = c->getFaceAt(+2);
+            print( ofile, f3);
+            auto f4 = c->getFaceAt(-3);
+            print( ofile, f4);
+            auto f5 = c->getFaceAt(+3);
+            print( ofile, f5);
+        }
     }
 };
 
 ///////////////////////////////////////////////////////////////////////
 //
-CellPtr getHexElement( const std::array<NodePtr,4> &nodes1, const std::array<NodePtr,4>  &nodes2)
+CellPtr getHexElement( const std::array<NodePtr,4> &anodes, const std::array<NodePtr,4>  &bnodes)
 {
     auto newcell = std::make_shared<Cell>();
 
-    newcell->nodes[0] = nodes1[0];
-    newcell->nodes[1] = nodes1[1];
-    newcell->nodes[2] = nodes1[2];
-    newcell->nodes[3] = nodes1[3];
+    newcell->nodes[0] = anodes[0];
+    newcell->nodes[1] = anodes[1];
+    newcell->nodes[2] = anodes[2];
+    newcell->nodes[3] = anodes[3];
 
+    newcell->nodes[4] = bnodes[0];
+    newcell->nodes[5] = bnodes[3];
+    newcell->nodes[6] = bnodes[2];
+    newcell->nodes[7] = bnodes[1];
+
+    /*
     auto getLength = [] ( const Array3D &p0, const Array3D &p1)
     {
         double dx = p1[0] - p0[0];
@@ -208,21 +214,24 @@ CellPtr getHexElement( const std::array<NodePtr,4> &nodes1, const std::array<Nod
     };
 
 
+
     NodePtr closenode;
     for( int i = 0; i < 4; i++) {
-    double mindist = std::numeric_limits<double>::max();
-    for( int j = 0; j < 4; j++) {
-           double len = getLength(nodes1[i]->xyz, nodes2[j]->xyz);
-	   if( len < mindist) {
-               closenode  = nodes2[j];
-	       mindist   = len;
-	   }
-           newcell->nodes[i+4] = closenode;
+        double mindist = std::numeric_limits<double>::max();
+        for( int j = 0; j < 4; j++) {
+            double len = getLength(nodes1[i]->xyz, nodes2[j]->xyz);
+            if( len < mindist) {
+                closenode  = nodes2[j];
+                mindist   = len;
+            }
+            newcell->nodes[i+4] = closenode;
+        }
     }
-    }
+    */
 
     return newcell;
 }
+///////////////////////////////////////////////////////////////////////
 
 CellPtr getHexElement( const FacePtr &face1, const FacePtr &face2)
 {
@@ -275,7 +284,7 @@ MeshPtr genSphere(double radius = 1.0, int n = 4)
                 newnode->id     = index;
                 newmesh->nodes[index] = newnode;
                 if( isBoundary(i,j,k,n) ) newmesh->boundnodes.push_back(newnode);
-		index++;
+                index++;
             }
         }
     }
@@ -395,23 +404,23 @@ MeshPtr readGraph( const string &filename)
 
 FacePtr getProfileAt(const FacePtr &refface, const Array3D &pos)
 {
-      // Make a copy of the refface and translate to given position...
+    // Make a copy of the refface and translate to given position...
 
-      Array3D refpos = refface->getCenter();
-      double  dx  = pos[0] - refpos[0];
-      double  dy  = pos[1] - refpos[1];
-      double  dz  = pos[2] - refpos[2];
+    Array3D refpos = refface->getCenter();
+    double  dx  = pos[0] - refpos[0];
+    double  dy  = pos[1] - refpos[1];
+    double  dz  = pos[2] - refpos[2];
 
-      auto newface = std::make_shared<Face>();
+    auto newface = std::make_shared<Face>();
 
-      for( int i = 0; i < 4; i++) {
-           auto newnode = std::make_shared<Node>();
-	   newnode->xyz[0] = refface->nodes[i]->xyz[0] + dx;
-	   newnode->xyz[1] = refface->nodes[i]->xyz[1] + dy;
-	   newnode->xyz[2] = refface->nodes[i]->xyz[2] + dz;
-	   newface->nodes[i] = newnode;
-      }
-      return newface;
+    for( int i = 0; i < 4; i++) {
+        auto newnode = std::make_shared<Node>();
+        newnode->xyz[0] = refface->nodes[i]->xyz[0] + dx;
+        newnode->xyz[1] = refface->nodes[i]->xyz[1] + dy;
+        newnode->xyz[2] = refface->nodes[i]->xyz[2] + dz;
+        newface->nodes[i] = newnode;
+    }
+    return newface;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -460,11 +469,11 @@ void buildTube( const NodePtr &vtx, const EdgePtr &edge)
     FacePtr capface;
     for( auto f : vtx->hexmesh->boundfaces)
     {
-           double len = getLength(f->getCenter(), queryPoint);
-	   if( len < mindist) {
-               capface = f;
-	       mindist   = len;
-	   }
+        double len = getLength(f->getCenter(), queryPoint);
+        if( len < mindist) {
+            capface = f;
+            mindist   = len;
+        }
     }
 
     // Only one edge is supposed to pass through the face. If not, we
@@ -475,29 +484,29 @@ void buildTube( const NodePtr &vtx, const EdgePtr &edge)
 
     Array3D edgeCenter =  edge->getCenter();
 
-    int nprofiles = 3;
-    double dt = 1.0/(double)nprofiles;
+    int nprofiles = 10;
+    double dt = 0.99/(double)nprofiles;
 
     // Create profiles along the edge ( from the query point and edgecenter).
     //
     Array3D p3d;
     edge->profiles[pos].push_back(capface);
     for( int i = 1; i < nprofiles; i++) {
-         double t = i*dt;
-	 p3d[0] = (1-t)*queryPoint[0] + t*edgeCenter[0];
-	 p3d[1] = (1-t)*queryPoint[1] + t*edgeCenter[1];
-	 p3d[2] = (1-t)*queryPoint[2] + t*edgeCenter[2];
-	 auto newprofile = getProfileAt(capface, p3d);
-	 edge->profiles[pos].push_back(newprofile);
+        double t = i*dt;
+        p3d[0] = (1-t)*queryPoint[0] + t*edgeCenter[0];
+        p3d[1] = (1-t)*queryPoint[1] + t*edgeCenter[1];
+        p3d[2] = (1-t)*queryPoint[2] + t*edgeCenter[2];
+        auto newprofile = getProfileAt(capface, p3d);
+        edge->profiles[pos].push_back(newprofile);
     }
 
     // Create hex elements from the profile quads ....
 
     for( int i = 0; i < edge->profiles[pos].size()-1; i++) {
-         auto face1 = edge->profiles[pos][i];
-         auto face2 = edge->profiles[pos][i+1];
-         auto cell = getHexElement(face1, face2);
-	 edge->hexmesh->cells.push_back(cell);
+        auto face1 = edge->profiles[pos][i];
+        auto face2 = edge->profiles[pos][i+1];
+        auto cell = getHexElement(face1, face2);
+        edge->hexmesh->cells.push_back(cell);
     }
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -509,17 +518,17 @@ void buildTube( const EdgePtr &edge)
     // Create tube starting from the node 0
     buildTube( edge->nodes[0], edge);
     for( int i = 1;  i < edge->profiles[0].size(); i++) {
-	    auto f = edge->profiles[0][i];
-	    for( int j  = 0; j < 4; j++) 
-	    edge->hexmesh->nodes.push_back( f->nodes[j] );
+        auto f = edge->profiles[0][i];
+        for( int j  = 0; j < 4; j++)
+            edge->hexmesh->nodes.push_back( f->nodes[j] );
     }
 
     // Create tube starting from the node 1
     buildTube( edge->nodes[1], edge);
     for( int i = 1;  i < edge->profiles[1].size(); i++) {
-	    auto f = edge->profiles[1][i];
-	    for( int j  = 0; j < 4; j++) 
-	    edge->hexmesh->nodes.push_back( f->nodes[j] );
+        auto f = edge->profiles[1][i];
+        for( int j  = 0; j < 4; j++)
+            edge->hexmesh->nodes.push_back( f->nodes[j] );
     }
 
 
@@ -567,16 +576,16 @@ void buildJunction( const NodePtr &vtx)
 //////////////////////////////////////////////////////////////////////////////
 MeshPtr accumulateHexMesh( const MeshPtr &graph)
 {
-   auto hexmesh = std::make_shared<Mesh>();
+    auto hexmesh = std::make_shared<Mesh>();
 
-   for( auto v: graph->nodes) hexmesh->add(v->hexmesh);
+    for( auto v: graph->nodes) hexmesh->add(v->hexmesh);
 
-   for( auto e: graph->edges) hexmesh->add(e->hexmesh);
+    for( auto e: graph->edges) hexmesh->add(e->hexmesh);
 
-   int index = 0;
-   for( auto v : hexmesh->nodes) v->id = index++;
+    int index = 0;
+    for( auto v : hexmesh->nodes) v->id = index++;
 
-   return hexmesh;
+    return hexmesh;
 }
 //////////////////////////////////////////////////////////////////////////////
 
