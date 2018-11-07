@@ -136,16 +136,20 @@ struct Mesh
         ofstream ofile( filename.c_str(), ios::out);
 
         ofile << "OFF" << endl;
-        ofile << nodes.size() << " " << boundfaces.size() << " 0 " << endl;
+        ofile << nodes.size() << " " << cells.size() << " 0 " << endl;
 
         for( auto v : nodes)
             ofile << v->xyz[0] << " " << v->xyz[1] << " " << v->xyz[2] << endl;
 
-        for( auto f : boundfaces)
-            ofile << "4 " << f->nodes[0]->id << " "
-                  << f->nodes[1]->id << " "
-                  << f->nodes[2]->id << " "
-                  << f->nodes[3]->id << endl;
+        for( auto c : cells) 
+            ofile << "8 " << c->nodes[0]->id << " "
+                          << c->nodes[1]->id << " "
+                  	  << c->nodes[2]->id << " "
+                  	  << c->nodes[3]->id << " "
+                  	  << c->nodes[4]->id << " "
+                  	  << c->nodes[5]->id << " "
+                  	  << c->nodes[6]->id << " "
+                          << c->nodes[7]->id << endl;
     }
 };
 
@@ -497,6 +501,9 @@ MeshPtr accumulateHexMesh( const MeshPtr &graph)
    for( auto v: graph->nodes) hexmesh->add(v->hexmesh);
    for( auto e: graph->edges) hexmesh->add(e->hexmesh);
 
+   int index = 0;
+   for( auto v : hexmesh->nodes) v->id = index++;
+
    return hexmesh;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -510,9 +517,7 @@ int main(int argc, char **argv)
     cout << graph->edges.size() << endl;
 
     for( auto v: graph->nodes ) buildJunction(v);
-    for( auto e: graph->edges ) {
-	    buildTube(e);
-    }
+    for( auto e: graph->edges ) buildTube(e);
 
     auto hexmesh = accumulateHexMesh(graph);
 
