@@ -188,6 +188,41 @@ struct Mesh
 };
 
 ///////////////////////////////////////////////////////////////////////
+//
+CellPtr getHexElement( const std::array<NodePtr,4> &nodes1, const std::array<NodePtr,4>  &nodes2)
+{
+    auto newcell = std::make_shared<Cell>();
+
+    newcell->nodes[0] = nodes1[0];
+    newcell->nodes[1] = nodes1[1];
+    newcell->nodes[2] = nodes1[2];
+    newcell->nodes[3] = nodes1[3];
+
+    auto getLength = [] ( const Array3D &p0, const Array3D &p1)
+    {
+        double dx = p1[0] - p0[0];
+        double dy = p1[1] - p0[1];
+        double dz = p1[2] - p0[2];
+
+        return sqrt(dx*dx + dy*dy + dz*dz);
+    };
+
+
+    NodePtr closenode;
+    for( int i = 0; i < 4; i++) {
+    double mindist = std::numeric_limits<double>::max();
+    for( int j = 0; j < 4; j++) {
+           double len = getLength(nodes1[i]->xyz, nodes2[j]->xyz);
+	   if( len < mindist) {
+               closenode  = nodes2[j];
+	       mindist   = len;
+	   }
+           newcell->nodes[i+4] = closenode;
+    }
+    }
+
+    return newcell;
+}
 
 CellPtr getHexElement( const FacePtr &face1, const FacePtr &face2)
 {
@@ -488,14 +523,12 @@ void buildTube( const EdgePtr &edge)
     }
 
 
-    /*
     // Join the tube at the center of the edge. There is a danger of twisting
     // of the hex element. Need to address this issue.
     auto f1   = edge->profiles[0].back();
     auto f2   = edge->profiles[1].back();
-    auto cell = getHexElement(f1,f2);
+    auto cell = getHexElement(f1->nodes,f2->nodes);
     edge->hexmesh->cells.push_back(cell);
-    */
 
 
 }
