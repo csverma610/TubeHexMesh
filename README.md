@@ -17,17 +17,17 @@ the hexmesh quality.
 
 Example: xross.off
 
-OFF  \s\s
-5 0 4 \s\s
-0.0 0.0 0.0\s\s
-1.0 0.0 0.0\s\s
-0.0 1.0 0.0\s\s
--1.0 0.0 0.0\s\s
-0.0 -1.0 0.0\s\s
-0 1\s\s
-0 2\s\s
-0 3\s\s
-0 4\s\s
+OFF  
+5 0 4 
+0.0 0.0 0.0
+1.0 0.0 0.0
+0.0 1.0 0.0
+-1.0 0.0 0.0
+0.0 -1.0 0.0
+0 1
+0 2
+0 3
+0 4
 
 Should produce Hexmesh as:
 
