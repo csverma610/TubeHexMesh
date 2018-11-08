@@ -15,6 +15,22 @@ There may be many challenges in improving the geometric qualities of the mesh
 degenerate elements (i.e. volume zero) etc.  Further research is required to improve
 the hexmesh quality.
 
+Example: xross.off
+
+OFF 
+5 0 4
+0.0 0.0 0.0
+1.0 0.0 0.0
+0.0 1.0 0.0
+-1.0 0.0 0.0
+0.0 -1.0 0.0
+0 1
+0 2
+0 3
+0 4
+
+Should produce Hexmesh as:
+
 
 ![alt text](./example.png "Title")
 
