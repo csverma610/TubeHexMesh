@@ -15,7 +15,8 @@ There may be many challenges in improving the geometric qualities of the mesh
 degenerate elements (i.e. volume zero) etc.  Further research is required to improve
 the hexmesh quality.
 
-Example: xross.off
+
+## Example: xross.off
 
 OFF  
 5 0 4 
@@ -31,6 +32,14 @@ OFF
 
 Should produce Hexmesh as:
 
-
 ![alt text](./example.png "Title")
+
+
+## If problems occcur
+
+1.   If a node has many edges then try refining the node hemesh. i.e. Change the second parameter "n" in genSphere(radius, n)
+2.   A tube is twisted at the center. This will occur when two profiles are incorrectly combined to form a hex element.
+     Try changing the ordering of the nodes of one of the profiles.
+
+
 
