@@ -55,6 +55,8 @@ void Mesh::addFace( FacePtr &newface)
 
 void QuadViewer:: readMesh( const string &filename)
 {
+    if( filename.empty() ) return;
+
     ifstream ifile( filename.c_str(), ios::in);
     if( ifile.fail() ) {
         cout << "Warning: Input file not read " << endl;
@@ -103,14 +105,12 @@ void QuadViewer:: readMesh( const string &filename)
 
 void QuadViewer::keyPressEvent( QKeyEvent *e)
 {
-	/*
-    if( e->key() == Qt::Key_0) {
-        pickEntity = 0;
-        this->setSelectedName(-1);
-    }
-
-    if( e->key() == Qt::Key_N) {
-        displayIDs = !displayIDs;
+   
+    if( e->key() == Qt::Key_B) {
+        QColor color = QColorDialog::getColor(Qt::white, this);
+	bgColor[0] = color.red()/255.0;
+	bgColor[1] = color.green()/255.0;
+	bgColor[2] = color.blue()/255.0;
     }
 
     if( e->key() == Qt::Key_S) {
@@ -129,27 +129,7 @@ void QuadViewer::keyPressEvent( QKeyEvent *e)
         return;
     }
 
-    if( e->key() == Qt::Key_N) {
-        nstep++;
-        double t = nstep*dt;
-        if( t <= 1.0) {
-            At  = AffineLib::expSE(t*logA);
-            mult( At, currmesh);
-            update();
-        }
-        return;
-    }
 
-    if( e->key() == Qt::Key_R) {
-	    nstep = 1;
-            double t = nstep*dt;
-            if( t <= 1.0) {
-            At  = AffineLib::expSE(t*logA);
-            mult( At, currmesh);
-            update();
-            }
-            return;
-    }
     if( e->key() == Qt::Key_Home) {
         qglviewer::Vec pos;
         pos[0]  = srcmesh.center[0];
@@ -162,7 +142,6 @@ void QuadViewer::keyPressEvent( QKeyEvent *e)
         update();
         return;
     }
-    */
 
     QGLViewer::keyPressEvent(e);
 
@@ -190,7 +169,7 @@ void QuadViewer::mouseReleaseEvent( QMouseEvent *e)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void QuadViewer::drawFaces(Mesh &themesh)
+void QuadViewer::drawFaces(const Mesh &themesh)
 {
     if( useLights ) glEnable(GL_LIGHTING);
 
@@ -207,19 +186,41 @@ void QuadViewer::drawFaces(Mesh &themesh)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void QuadViewer::drawEdges(const Mesh &themesh)
+{
+    glDisable(GL_LIGHTING);
+    for ( auto e : themesh.edges) {
+        if(e->active) {
+            glBegin(GL_LINES);
+            glVertex3fv( &e->nodes[0]->xyz[0] );
+            glVertex3fv( &e->nodes[1]->xyz[0] );
+            glEnd();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void QuadViewer::draw()
 {
+    glClearColor(bgColor[0], bgColor[1], bgColor[2], 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
     glPolygonOffset(1.0,1.0);
     glEnable(GL_POLYGON_OFFSET_LINE);
 
+    if( displaySurface) {
     glPolygonMode( GL_FRONT_AND_BACK, GL_FILL);
     glColor3f( 1.0, 0.0, 0.0);
     drawFaces(srcmesh);
+    }
 
+    if( displayWires) {
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE);
     glColor3f( 0.0, 0.0, 0.0);
-    drawFaces(srcmesh);
+    glLineWidth(2.0);
+    drawEdges(srcmesh);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +234,7 @@ int main(int argc, char **argv) {
   QuadViewer viewer;
 
   viewer.setWindowTitle("QuadViewer");
-  viewer.readMesh( argv[1] );
+  if( argc > 1) viewer.readMesh( argv[1] );
 
   // Make the viewer window visible on screen.
   viewer.show();

@@ -12,6 +12,7 @@
 
 #include <QApplication>
 #include <QKeyEvent>
+#include <QColorDialog>
 
 class Node;
 typedef std::shared_ptr<Node> NodePtr;
@@ -122,7 +123,7 @@ inline std::array<float,3> Face :: getCentroid() const
 
 inline FacePtr Face:: newObject(NodePtr &n0, NodePtr &n1, NodePtr &n2, NodePtr &n3)
 {
-    FacePtr f(new Face(n0,n1,n2,n3));
+    auto f = std::make_shared<Face>(n0,n1,n2,n3);
     return f;
 }
 
@@ -135,8 +136,11 @@ struct Mesh
     std::vector<EdgePtr> edges;
     std::vector<FacePtr> faces;
 
-    void saveAs( const std::string &s);
+    double radius;
     std::array<double,3> center = {0.0, 0.0, 0.0};
+
+
+    void saveAs( const std::string &s);
 };
 
 
@@ -158,14 +162,14 @@ private:
     Mesh srcmesh, dstmesh, currmesh;
     std::array<double,3> startPos, endPos;
     int  maxSteps = 100;
+    std::array<float,3>  bgColor = {0.2, 0.2, 0.2};
 
     int  pickEntity = 0;
     bool displayWires = 1;
     bool displaySurface = 1;
     bool useLights      = 0;
     bool displayIDs     = 0;
-    double dt;
-    int    nstep = 0;
 
-    void drawFaces(Mesh &themesh);
+    void drawFaces(const Mesh &themesh);
+    void drawEdges(const Mesh &themesh);
 };

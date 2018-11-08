@@ -15,3 +15,6 @@ There may be many challenges in improving the geometric qualities of the mesh
 degenerate elements (i.e. volume zero) etc.  Further research is required to improve
 the hexmesh quality.
 
+
+![alt text](./example.png "Title")
+
