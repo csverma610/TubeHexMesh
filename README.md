@@ -38,6 +38,8 @@ Should produce Hexmesh as:
 ## If problems occcur
 
 1.   If a node has many edges then try refining the node hemesh. i.e. Change the second parameter "n" in genSphere(radius, n)
+     However, remember that with the size "n", 6*(n-1)*(n-1) edges can be supported. So increment n only when it is 
+     absolutely necessary.
 2.   A tube is twisted at the center. This will occur when two profiles are incorrectly combined to form a hex element.
      Try changing the ordering of the nodes of one of the profiles.
 
