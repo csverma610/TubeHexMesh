@@ -9,6 +9,8 @@
 #include <math.h>
 #include <cassert>
 #include <limits>
+#include <map>
+#include <set>
 
 using namespace std;
 
@@ -32,9 +34,11 @@ struct Node
 {
     size_t   id;             // Unique ID of the node.
     double   radius;         // Radius of the sphere.
+    bool     fixed  = 0;     // Can it move or not?
     Array3D  xyz;            // Coordinates of the node.
     MeshPtr  hexmesh;        // Hex mesh of the sphere.
-    vector<EdgePtr> edges;   // edges attached to this node.
+    vector<EdgePtr> beams;   // beam attached to this node.
+    vector<EdgePtr> meshedges;
 };
 
 struct Edge
@@ -52,9 +56,19 @@ struct Edge
         return pc;
     }
 
+    double getLength() const
+    {
+        double dx = nodes[1]->xyz[0] - nodes[0]->xyz[0];
+        double dy = nodes[1]->xyz[1] - nodes[0]->xyz[1];
+        double dz = nodes[1]->xyz[2] - nodes[0]->xyz[2];
+        return sqrt(dx*dx + dy*dy + dz*dz);
+    }
+
     std::array<NodePtr,2>  nodes;
     MeshPtr  hexmesh;
     std::vector<FacePtr>  profiles[2];   // Used for hexmesh...
+    std::vector<FacePtr>  quadprofiles;
+    std::array<FacePtr,2> capfaces;
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -114,6 +128,7 @@ struct Cell
 };
 
 typedef std::shared_ptr<Cell>  CellPtr;
+double sphRadius;
 
 ///////////////////////////////////////////////////////////////////////
 
@@ -188,50 +203,6 @@ struct Mesh
 };
 
 ///////////////////////////////////////////////////////////////////////
-//
-CellPtr getHexElement( const std::array<NodePtr,4> &anodes, const std::array<NodePtr,4>  &bnodes)
-{
-    auto newcell = std::make_shared<Cell>();
-
-    newcell->nodes[0] = anodes[0];
-    newcell->nodes[1] = anodes[1];
-    newcell->nodes[2] = anodes[2];
-    newcell->nodes[3] = anodes[3];
-
-    newcell->nodes[4] = bnodes[0];
-    newcell->nodes[5] = bnodes[3];
-    newcell->nodes[6] = bnodes[2];
-    newcell->nodes[7] = bnodes[1];
-
-    /*
-    auto getLength = [] ( const Array3D &p0, const Array3D &p1)
-    {
-        double dx = p1[0] - p0[0];
-        double dy = p1[1] - p0[1];
-        double dz = p1[2] - p0[2];
-
-        return sqrt(dx*dx + dy*dy + dz*dz);
-    };
-
-
-
-    NodePtr closenode;
-    for( int i = 0; i < 4; i++) {
-        double mindist = std::numeric_limits<double>::max();
-        for( int j = 0; j < 4; j++) {
-            double len = getLength(nodes1[i]->xyz, nodes2[j]->xyz);
-            if( len < mindist) {
-                closenode  = nodes2[j];
-                mindist   = len;
-            }
-            newcell->nodes[i+4] = closenode;
-        }
-    }
-    */
-
-    return newcell;
-}
-///////////////////////////////////////////////////////////////////////
 
 CellPtr getHexElement( const FacePtr &face1, const FacePtr &face2)
 {
@@ -278,13 +249,10 @@ MeshPtr genSphere(double radius = 1.0, int n = 4)
                 double y = -radius + j*dl;
                 double z = -radius + k*dl;
                 auto newnode = std::make_shared<Node>();
-                newnode->xyz[0] = x;
-                newnode->xyz[1] = y;
-                newnode->xyz[2] = z;
-                newnode->id     = index;
-                newmesh->nodes[index] = newnode;
+                newnode->xyz = {x,y,z};
+                newnode->id  = index;
+                newmesh->nodes[index++] = newnode;
                 if( isBoundary(i,j,k,n) ) newmesh->boundnodes.push_back(newnode);
-                index++;
             }
         }
     }
@@ -375,10 +343,8 @@ MeshPtr readGraph( const string &filename)
     for( size_t i = 0; i < numNodes; i++) {
         ifile >> x >> y >> z;
         auto v = std::make_shared<Node>();
-        v->xyz[0] = x;
-        v->xyz[1] = y;
-        v->xyz[2] = z;
-        v->id     = i;
+        v->xyz = {x,y,z};
+        v->id  = i;
         graph->nodes[i] = v;
     }
 
@@ -391,12 +357,34 @@ MeshPtr readGraph( const string &filename)
         auto n0 = graph->nodes[v0];
         auto n1 = graph->nodes[v1];
         auto newedge = std::make_shared<Edge>();
-        newedge->nodes[0] = n0;
-        newedge->nodes[1] = n1;
-        graph->edges[i]   = newedge;
-        n0->edges.push_back(newedge);
-        n1->edges.push_back(newedge);
+        newedge->nodes  = {n0,n1};
+        graph->edges[i] = newedge;
+        n0->beams.push_back(newedge);
+        n1->beams.push_back(newedge);
     }
+
+
+    auto getLength = [] ( const Array3D &p0, const Array3D &p1)
+    {
+        double dx = p1[0] - p0[0];
+        double dy = p1[1] - p0[1];
+        double dz = p1[2] - p0[2];
+
+        return sqrt(dx*dx + dy*dy + dz*dz);
+    };
+
+    double minlen = std::numeric_limits<double>::max();
+
+    for( auto e : graph->edges) {
+        auto n0 = e->nodes[0];
+        auto n1 = e->nodes[1];
+        double len = getLength( n0->xyz, n1->xyz);
+        minlen  =  min(len, minlen);
+    }
+    assert( minlen > 1.0E-06);
+
+    sphRadius = 0.05*minlen;
+
     return graph;
 }
 
@@ -418,28 +406,35 @@ FacePtr getProfileAt(const FacePtr &refface, const Array3D &pos)
         newnode->xyz[0] = refface->nodes[i]->xyz[0] + dx;
         newnode->xyz[1] = refface->nodes[i]->xyz[1] + dy;
         newnode->xyz[2] = refface->nodes[i]->xyz[2] + dz;
+        newnode->fixed  = 1;
         newface->nodes[i] = newnode;
     }
     return newface;
 }
 
 //////////////////////////////////////////////////////////////////////////////
-
-void buildTube( const NodePtr &vtx, const EdgePtr &edge)
+void translate( const FacePtr &face, const Array3D &newCenter)
 {
-    int pos = 0;
-    if( edge->nodes[0] == vtx) pos = 0;
-    if( edge->nodes[1] == vtx) pos = 1;
+    auto currCenter = face->getCenter();
+    double dx = newCenter[0] - currCenter[0];
+    double dy = newCenter[1] - currCenter[1];
+    double dz = newCenter[2] - currCenter[2];
 
-    assert( pos == 0 || pos == 1);
+    for( int i = 0; i < 4; i++) {
+        face->nodes[i]->xyz[0] += dx;
+        face->nodes[i]->xyz[1] += dy;
+        face->nodes[i]->xyz[2] += dz;
+    }
+}
+//////////////////////////////////////////////////////////////////////////////
 
-    NodePtr othernode;
-    othernode = edge->nodes[(pos+1)%2];
+void findCap( const EdgePtr &edge, int pos)
+{
+    auto v0 = edge->nodes[pos];
+    auto v1 = edge->nodes[(pos+1)%2];
 
-    const auto &p0 = vtx->xyz;
-    const auto &p1 = othernode->xyz;
-
-    assert( vtx != othernode);
+    auto p0 = v0->xyz;
+    auto p1 = v1->xyz;
 
     double dx  = p1[0] - p0[0];
     double dy  = p1[1] - p0[1];
@@ -449,9 +444,9 @@ void buildTube( const NodePtr &vtx, const EdgePtr &edge)
     // A query point lies on the boundary of the junction.
 
     Array3D queryPoint;
-    queryPoint[0] = vtx->radius*dx/dl + vtx->xyz[0];
-    queryPoint[1] = vtx->radius*dy/dl + vtx->xyz[1];
-    queryPoint[2] = vtx->radius*dz/dl + vtx->xyz[2];
+    queryPoint[0] = v0->radius*dx/dl + v0->xyz[0];
+    queryPoint[1] = v0->radius*dy/dl + v0->xyz[1];
+    queryPoint[2] = v0->radius*dz/dl + v0->xyz[2];
 
     auto getLength = [] ( const Array3D &p0, const Array3D &p1)
     {
@@ -467,12 +462,12 @@ void buildTube( const NodePtr &vtx, const EdgePtr &edge)
     // Check will boundary face intersects the query point.
 
     FacePtr capface;
-    for( auto f : vtx->hexmesh->boundfaces)
+    for( auto f : v0->hexmesh->boundfaces)
     {
         double len = getLength(f->getCenter(), queryPoint);
         if( len < mindist) {
             capface = f;
-            mindist   = len;
+            mindist = len;
         }
     }
 
@@ -481,65 +476,115 @@ void buildTube( const NodePtr &vtx, const EdgePtr &edge)
     assert(!capface->used_for_hex);
 
     capface->used_for_hex = 1;
+    edge->capfaces[pos] = capface;
 
-    Array3D edgeCenter =  edge->getCenter();
-
-    int nprofiles = 10;
-    double dt = 0.99/(double)nprofiles;
-
-    // Create profiles along the edge ( from the query point and edgecenter).
-    //
-    Array3D p3d;
-    edge->profiles[pos].push_back(capface);
-    for( int i = 1; i < nprofiles; i++) {
-        double t = i*dt;
-        p3d[0] = (1-t)*queryPoint[0] + t*edgeCenter[0];
-        p3d[1] = (1-t)*queryPoint[1] + t*edgeCenter[1];
-        p3d[2] = (1-t)*queryPoint[2] + t*edgeCenter[2];
-        auto newprofile = getProfileAt(capface, p3d);
-        edge->profiles[pos].push_back(newprofile);
-    }
-
-    // Create hex elements from the profile quads ....
-
-    for( int i = 0; i < edge->profiles[pos].size()-1; i++) {
-        auto face1 = edge->profiles[pos][i];
-        auto face2 = edge->profiles[pos][i+1];
-        auto cell = getHexElement(face1, face2);
-        edge->hexmesh->cells.push_back(cell);
-    }
+//  translate( capface, queryPoint);
 }
+
 //////////////////////////////////////////////////////////////////////////////
+void match( FacePtr &face, const FacePtr &refface)
+{
+    auto getLength = [] ( const Array3D &p0, const Array3D &p1)
+    {
+        double dx = p1[0] - p0[0];
+        double dy = p1[1] - p0[1];
+        double dz = p1[2] - p0[2];
+
+        return sqrt(dx*dx + dy*dy + dz*dz);
+    };
+
+    int pos0 = -1;
+
+    double minlen = std::numeric_limits<double>::max();
+
+    // look for the closest node on face to the "0th" node on refface ..
+
+    Array3D p0, p1, p2;
+    p0 = refface->nodes[0]->xyz;
+    for( int j = 0; j < 4; j++) {
+        p1  = face->nodes[j]->xyz;
+        auto len = getLength(p0,p1);
+        if( len < minlen) {
+            pos0 = j;
+            minlen = len;
+        }
+    }
+
+    // Now look for the closest node on face to the 1st node on refface.
+    // This node can not the node already found and it also cannot the third
+    // node.
+
+    minlen = std::numeric_limits<double>::max();
+
+    int pos1 = -1;
+    p0 = refface->nodes[1]->xyz;
+    for( int j = 0; j < 4; j++) {
+        if( (j != pos0) && (j != (pos0+2)%4) ) {
+            p1  = face->nodes[j]->xyz;
+            auto len = getLength(p0,p1);
+            if( len < minlen) {
+                pos1 = j;
+                minlen = len;
+            }
+        }
+    }
+
+    // Now reorder the face with
+    std::array<NodePtr,4> newnodes;
+    newnodes[0] = face->nodes[pos0];
+    newnodes[1] = face->nodes[pos1];
+    newnodes[2] = face->nodes[(pos0+2)%4];
+    newnodes[3] = face->nodes[(pos1+2)%4];
+
+    face->nodes = newnodes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void buildTube( const EdgePtr &edge)
 {
+    findCap( edge, 0);
+    findCap( edge, 1);
+
+    int nprofiles =  max(5.0, edge->getLength()/sphRadius);
+
+    double dt = 1.0/(double)(nprofiles-1);
+
+    edge->quadprofiles.clear();
+
+    auto face0 = edge->capfaces[0];
+    auto face1 = edge->capfaces[1];
+
+    assert( face0 != face1);
+
+    edge->quadprofiles.push_back(face0);
+
     edge->hexmesh = std::make_shared<Mesh>();
 
-    // Create tube starting from the node 0
-    buildTube( edge->nodes[0], edge);
-    for( int i = 1;  i < edge->profiles[0].size(); i++) {
-        auto f = edge->profiles[0][i];
-        for( int j  = 0; j < 4; j++)
-            edge->hexmesh->nodes.push_back( f->nodes[j] );
+    Array3D xyz;
+    for( int i = 2; i < nprofiles-1; i++) {
+        double t = i*dt;
+        xyz[0] = (1-t)*edge->nodes[0]->xyz[0] + t*edge->nodes[1]->xyz[0];
+        xyz[1] = (1-t)*edge->nodes[0]->xyz[1] + t*edge->nodes[1]->xyz[1];
+        xyz[2] = (1-t)*edge->nodes[0]->xyz[2] + t*edge->nodes[1]->xyz[2];
+        auto newface = getProfileAt( face0, xyz);
+        edge->hexmesh->nodes.push_back(newface->nodes[0] );
+        edge->hexmesh->nodes.push_back(newface->nodes[1] );
+        edge->hexmesh->nodes.push_back(newface->nodes[2] );
+        edge->hexmesh->nodes.push_back(newface->nodes[3] );
+        edge->quadprofiles.push_back(newface);
     }
 
-    // Create tube starting from the node 1
-    buildTube( edge->nodes[1], edge);
-    for( int i = 1;  i < edge->profiles[1].size(); i++) {
-        auto f = edge->profiles[1][i];
-        for( int j  = 0; j < 4; j++)
-            edge->hexmesh->nodes.push_back( f->nodes[j] );
+//   match(face1, edge->quadprofiles.back());
+
+    edge->quadprofiles.push_back( face1 );
+
+    for( int i = 0; i < edge->quadprofiles.size()-1; i++) {
+        auto face1 = edge->quadprofiles[i];
+        auto face2 = edge->quadprofiles[i+1];
+        auto cell  = getHexElement(face1, face2);
+        edge->hexmesh->cells.push_back(cell);
     }
-
-
-    // Join the tube at the center of the edge. There is a danger of twisting
-    // of the hex element. Need to address this issue.
-    auto f1   = edge->profiles[0].back();
-    auto f2   = edge->profiles[1].back();
-    auto cell = getHexElement(f1->nodes,f2->nodes);
-    edge->hexmesh->cells.push_back(cell);
-
-
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -557,7 +602,7 @@ void buildJunction( const NodePtr &vtx)
 
     double minlen = std::numeric_limits<double>::max();
 
-    for( auto edge : vtx->edges) {
+    for( auto edge : vtx->beams) {
         auto n0 = edge->nodes[0];
         auto n1 = edge->nodes[1];
         double len = getLength( n0->xyz, n1->xyz);
@@ -565,21 +610,98 @@ void buildJunction( const NodePtr &vtx)
     }
     assert( minlen > 1.0E-06);
 
-    double radius = 0.1*minlen;
+    double radius = 0.01*minlen;
 
-    vtx->hexmesh  = genSphere(radius,4);
-    vtx->radius   = radius;
-
+    vtx->hexmesh  = genSphere(sphRadius,5);
+    vtx->radius   = sphRadius;
     translate( vtx->hexmesh, vtx->xyz);
 }
-
+//
 //////////////////////////////////////////////////////////////////////////////
+//
+void smoothJunction( const NodePtr &vtx)
+{
+    std::map<NodePtr, set<NodePtr>> vmap;
+    for( auto f: vtx->hexmesh->boundfaces) {
+        for( int i = 0; i < 4; i++) {
+            auto n0 = f->nodes[i];
+            auto n1 = f->nodes[(i+1)%4];
+            vmap[n0].insert(n1);
+            vmap[n1].insert(n0);
+        }
+    }
+
+    Array3D xyz;
+
+    int pos = 0;
+    FacePtr f0, f1;
+    for( auto e : vtx->beams) {
+        if( e->nodes[0] == vtx ) pos = 0;
+        if( e->nodes[1] == vtx ) pos = 1;
+        int nprofiles = e->quadprofiles.size();
+        if( pos == 0) {
+            f0 = e->quadprofiles[0];
+            f1 = e->quadprofiles[1];
+        } else {
+            f0 = e->quadprofiles[nprofiles-1];
+            f1 = e->quadprofiles[nprofiles-2];
+        }
+        for( int i = 0; i < 4; i++) {
+            auto n0 = f0->nodes[i];
+            auto n1 = f1->nodes[i];
+            vmap[n0].insert(n1);
+            vmap[n1].insert(n0);
+        }
+    }
+
+    std::map<NodePtr, Array3D> newPos;
+
+    for( int i = 0; i < 5; i++) {
+        for( auto keyval : vmap) {
+            auto vi = keyval.first;
+            if( !vi->fixed) {
+                auto vset = keyval.second;
+                Array3D xyz = {0.0, 0.0, 0.0};
+                for( auto vj : vset ) {
+                    xyz[0] += vj->xyz[0];
+                    xyz[1] += vj->xyz[1];
+                    xyz[2] += vj->xyz[2];
+                }
+                newPos[vi][0] = xyz[0]/(double)vmap[vi].size();
+                newPos[vi][1] = xyz[1]/(double)vmap[vi].size();
+                newPos[vi][2] = xyz[2]/(double)vmap[vi].size();
+            }
+        }
+
+        for( auto keyval : newPos ) {
+            auto vi   = keyval.first;
+            vi->xyz   = keyval.second;
+        }
+
+        double normal;
+        auto center = vtx->xyz;
+        for( auto v: vtx->hexmesh->boundnodes) {
+            xyz[0]  = v->xyz[0] - center[0];
+            xyz[1]  = v->xyz[1] - center[1];
+            xyz[2]  = v->xyz[2] - center[2];
+            double dl = sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2] );
+            double nx = xyz[0]/dl;
+            double ny = xyz[1]/dl;
+            double nz = xyz[2]/dl;
+            v->xyz[0] = sphRadius*nx + center[0];
+            v->xyz[1] = sphRadius*ny + center[1];
+            v->xyz[2] = sphRadius*nz + center[2];
+        }
+    }
+}
+//
+//////////////////////////////////////////////////////////////////////////////
+//
 MeshPtr accumulateHexMesh( const MeshPtr &graph)
 {
     auto hexmesh = std::make_shared<Mesh>();
 
     for( auto v: graph->nodes) hexmesh->add(v->hexmesh);
-
     for( auto e: graph->edges) hexmesh->add(e->hexmesh);
 
     int index = 0;
@@ -598,6 +720,8 @@ int main(int argc, char **argv)
     for( auto v: graph->nodes ) buildJunction(v);
     for( auto e: graph->edges ) buildTube(e);
 
+    for( auto v: graph->nodes ) smoothJunction(v);
+
     auto hexmesh = accumulateHexMesh(graph);
 
     hexmesh->saveAs("hexmesh.off");
@@ -606,4 +730,3 @@ int main(int argc, char **argv)
     return 0;
 }
 //////////////////////////////////////////////////////////////////////////////
-
